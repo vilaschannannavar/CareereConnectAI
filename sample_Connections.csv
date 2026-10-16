@@ -1,0 +1,11 @@
+Notes:
+When exporting your connection data, that data will only include first-name, last-name, email-address, company, position, and connected-on date.
+
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Alice,Smith,https://www.linkedin.com/in/alicesmith-recruiter,alice.smith@google.com,Google,Technical Recruiter,15 Jan 2024
+Bob,Jones,https://www.linkedin.com/in/bobjones-eng,bob.jones@meta.com,Meta,Staff Software Engineer,12 Feb 2024
+Carol,White,https://www.linkedin.com/in/carolwhite-talent,carol.white@amazon.com,Amazon,Senior Talent Acquisition Partner,20 Nov 2023
+David,Kim,https://www.linkedin.com/in/davidkim-em,david.kim@stripe.com,Stripe,Engineering Manager,05 Oct 2023
+Elena,Rostova,https://www.linkedin.com/in/elena-rostova-recruiter,elena.rostova@microsoft.com,Microsoft,University Talent Recruiter,18 Jan 2024
+Marcus,Vance,https://www.linkedin.com/in/marcusvance-dev,marcus.vance@netflix.com,Netflix,Principal Software Architect,01 Aug 2023
+Sarah,Connor,https://www.linkedin.com/in/sarah-connor-hr,sconnor@apple.com,Apple,Lead Technical Sourcer,10 Dec 2023
