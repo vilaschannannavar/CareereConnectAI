@@ -48,11 +48,13 @@ app = FastAPI(
 )
 
 # CORS configuration allowing frontend origin with cookies/credentials
-origins = [
+frontend_origin = settings.FRONTEND_URL.rstrip("/")
+origins = list(dict.fromkeys(filter(None, [
+    frontend_origin,
     settings.FRONTEND_URL,
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-]
+])))
 
 from app.core.security_headers import SecurityHeadersMiddleware
 

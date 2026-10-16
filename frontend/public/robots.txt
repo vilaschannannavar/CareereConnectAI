@@ -1,0 +1,12 @@
+# Robots.txt for CareerConnect AI
+User-agent: *
+Disallow: /overview
+Disallow: /connections
+Disallow: /shortlist
+Disallow: /tracker
+Disallow: /messages
+Disallow: /settings
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /privacy

@@ -22,9 +22,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application source and database migration configurations
 COPY . .
 
-# Create non-root application user and private storage directory
+# Create non-root application user, set permissions, and private storage directory
 RUN useradd -m -u 1000 appuser && \
     mkdir -p /app/data/private_storage && \
+    chmod +x /app/entrypoint.sh && \
     chown -R appuser:appuser /app
 
 USER appuser
@@ -35,5 +36,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
+ENTRYPOINT ["/app/entrypoint.sh"]
+
 # Launch uvicorn production server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+

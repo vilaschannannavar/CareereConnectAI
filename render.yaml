@@ -1,0 +1,72 @@
+services:
+  # CareerConnect AI - Backend API Service
+  - type: web
+    name: careerconnect-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: standard
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: APP_NAME
+        value: CareerConnect AI
+      - key: DATABASE_URL
+        fromDatabase:
+          name: careerconnect-postgres
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: careerconnect-frontend
+          property: url
+      - key: STORAGE_BACKEND
+        value: local
+      - key: LOCAL_STORAGE_PATH
+        value: /app/data/private_storage
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        sync: false
+    disk:
+      name: private-storage
+      mountPath: /app/data/private_storage
+      sizeGB: 1
+
+  # CareerConnect AI - Frontend Next.js Service
+  - type: web
+    name: careerconnect-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: standard
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_INTERNAL_URL
+        fromService:
+          type: web
+          name: careerconnect-backend
+          property: url
+
+databases:
+  # Managed PostgreSQL Database
+  - name: careerconnect-postgres
+    plan: standard
+    databaseName: careerconnect_prod
+    user: careerconnect

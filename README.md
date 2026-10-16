@@ -54,3 +54,59 @@ cmd /c npm run build     # Next.js production build
 cmd /c npm run dev       # Development server at http://localhost:3000
 cmd /c npm run test:e2e  # Playwright E2E tests
 ```
+
+## Production Deployment
+
+### Option A: Docker Compose (VPS, EC2, DigitalOcean)
+
+Deploy the entire stack (PostgreSQL 16, FastAPI backend, Next.js frontend) with a single command:
+
+1. Clone repository on your production host:
+   ```bash
+   git clone https://github.com/vilaschannannavar/CareereConnectAI.git
+   cd CareereConnectAI
+   ```
+2. Create production `.env` from template:
+   ```bash
+   cp .env.example .env
+   ```
+3. Generate secure keys:
+   ```bash
+   # Generate SECRET_KEY:
+   python -c "import secrets; print(secrets.token_hex(32))"
+
+   # Generate ENCRYPTION_KEY:
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+4. Set in your `.env`:
+   - `ENVIRONMENT=production`
+   - `SECURE_COOKIES=true`
+   - `FRONTEND_URL=https://your-domain.com`
+   - `SECRET_KEY=<generated-key>`
+   - `ENCRYPTION_KEY=<generated-key>`
+   - `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET` (if enabling OAuth)
+   - `GEMINI_API_KEY` (if enabling live LLM classification)
+5. Start services:
+   ```bash
+   docker compose up -d --build
+   ```
+   *Migrations are automatically executed via `backend/entrypoint.sh` upon container startup.*
+
+### Option B: Cloud PaaS (Render Blueprint)
+
+1. Fork or push this repository to GitHub.
+2. In Render Dashboard, click **New +** -> **Blueprint**.
+3. Select this repository; Render will read `render.yaml` and configure:
+   - Managed PostgreSQL database
+   - FastAPI backend container with automatic health checks & persistent disk
+   - Next.js frontend container with auto-rewrites
+4. Add your secrets (`GEMINI_API_KEY`, LinkedIn credentials) in the Render environment settings.
+
+### Option C: Vercel (Frontend) + Render / Railway (Backend)
+
+- Deploy `frontend/` directly to Vercel.
+  - Set Environment Variable: `BACKEND_INTERNAL_URL=https://your-backend-api.onrender.com`
+- Deploy `backend/` to Render or Railway using `backend/Dockerfile`.
+  - Set `FRONTEND_URL=https://your-app.vercel.app`
+  - Set `SECURE_COOKIES=true`
+  - Set `DATABASE_URL` (automatic conversion to `postgresql+asyncpg://` is handled internally).
