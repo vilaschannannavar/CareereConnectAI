@@ -73,14 +73,25 @@ All environment variables can be provided via a `.env` file or native container 
 ### D. Private Storage
 | Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `STORAGE_BACKEND` | string | `local` | `local` for sandboxed directory on persistent disk, or `s3` for S3-compatible object storage. |
+| `STORAGE_BACKEND` | string | `local` | `local` for sandboxed directory on persistent disk, or `s3` for S3-compatible object storage (AWS S3, MinIO, Cloudflare R2). |
 | `LOCAL_STORAGE_PATH` | string | `/app/data/private_storage` | Local absolute path for private resume storage. Mounted as a volume in Docker. |
 | `S3_BUCKET_NAME` | string | `None` | S3 bucket name if using cloud storage backend. |
 | `S3_REGION` | string | `None` | AWS / S3 region (e.g. `us-east-1`). |
+| `S3_ENDPOINT_URL` | string | `None` | Custom S3 endpoint URL if using MinIO or LocalStack (e.g. `http://minio:9000`). |
 | `S3_ACCESS_KEY_ID` | string | `None` | IAM Access Key ID with scoped bucket permissions. |
 | `S3_SECRET_ACCESS_KEY`| string | `None` | IAM Secret Access Key. |
 
-### E. LLM & Cost Protection
+### E. Email Dispatch & Password Reset (SMTP)
+| Variable | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `SMTP_HOST` | string | `None` | Outbound SMTP server hostname (e.g., `smtp.sendgrid.net`, `email-smtp.us-east-1.amazonaws.com`). |
+| `SMTP_PORT` | integer | `587` | Outbound SMTP TLS port (587 or 465). |
+| `SMTP_USER` | string | `None` | Authenticated SMTP username. |
+| `SMTP_PASSWORD` | string | `None` | Authenticated SMTP password or API key. |
+| `EMAILS_FROM_EMAIL` | string | `noreply@careerconnect.local` | Verified outbound sender email address. |
+| `EMAILS_FROM_NAME` | string | `CareerConnect AI` | Outbound sender display name. |
+
+### F. LLM & Cost Protection
 | Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `LLM_PROVIDER` | string | `gemini` | Configured provider: `gemini`, `openai`, or `mock`. |
@@ -89,7 +100,7 @@ All environment variables can be provided via a `.env` file or native container 
 | `LLM_TEMPERATURE` | float | `0.3` | Decoding temperature (low temperature ensures deterministic factual extraction). |
 | `LLM_USER_BUDGET_CAP_USD` | float | `1.00` | Configurable per-user spending cap in USD. Halts LLM calls with HTTP 429 when exhausted. |
 
-### F. Optional LinkedIn OIDC Sign-In
+### G. Optional LinkedIn OIDC Sign-In
 | Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `LINKEDIN_CLIENT_ID` | string | Optional | OAuth Client ID from LinkedIn Developer Portal. |

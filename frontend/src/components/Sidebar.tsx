@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -19,6 +20,9 @@ import {
   X,
   ShieldCheck,
   User as UserIcon,
+  ChevronLeft,
+  ChevronRight,
+  BookmarkCheck,
 } from "lucide-react";
 
 export const NAV_ITEMS = [
@@ -31,65 +35,94 @@ export const NAV_ITEMS = [
   { href: "/settings", label: "Settings & Privacy", icon: Settings },
 ];
 
-export function Sidebar() {
+export const OPENINGS_NAV_ITEM = { href: "/openings", label: "Job Openings", icon: BookmarkCheck };
+export const ALL_NAV_ITEMS = [
+  NAV_ITEMS[0],
+  NAV_ITEMS[1],
+  NAV_ITEMS[2],
+  OPENINGS_NAV_ITEM,
+  NAV_ITEMS[3],
+  NAV_ITEMS[4],
+  NAV_ITEMS[5],
+  NAV_ITEMS[6],
+];
+
+export function Sidebar({
+  collapsed,
+  setCollapsed,
+}: {
+  collapsed?: boolean;
+  setCollapsed?: (val: boolean) => void;
+}) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const isCollapsed = !!collapsed;
+
   return (
     <>
-      {/* Mobile Header Bar */}
-      <div className="lg:hidden flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sticky top-0 z-30">
-        <Link href="/overview" className="flex items-center space-x-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+      {/* Mobile Top Header */}
+      <header className="lg:hidden flex items-center justify-between border-b border-border bg-card px-4 py-3 sticky top-0 z-30 shadow-xs">
+        <Link href="/overview" className="flex items-center space-x-2.5">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-sm">
             <Briefcase className="h-4 w-4" />
           </div>
-          <span className="font-bold text-slate-900 tracking-tight">CareerConnect AI</span>
+          <span className="font-bold text-base text-foreground tracking-tight">
+            CareerConnect <span className="text-primary">AI</span>
+          </span>
         </Link>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-1.5 rounded-md text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          aria-expanded={mobileOpen}
-        >
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
-      </div>
+        <div className="flex items-center space-x-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 rounded-lg text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </header>
 
-      {/* Mobile Drawer Overlay */}
+      {/* Mobile Backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-fade-in"
           onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar Container */}
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-50 w-64 border-r border-slate-200 bg-white flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed top-0 bottom-0 left-0 z-50 border-r border-border bg-card flex flex-col transition-all duration-300 ease-in-out lg:static lg:z-auto shadow-sm",
+          isCollapsed ? "w-20" : "w-64",
+          mobileOpen ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0"
         )}
         aria-label="Main Navigation"
       >
         {/* Brand Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-          <Link href="/overview" className="flex items-center space-x-2.5">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
+        <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between">
+          <Link href="/overview" className="flex items-center space-x-2.5 overflow-hidden">
+            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-sm shrink-0">
               <Briefcase className="h-5 w-5" />
             </div>
-            <div>
-              <span className="font-bold text-base text-slate-900 tracking-tight block">
-                CareerConnect <span className="text-blue-600">AI</span>
-              </span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-600 block flex items-center gap-1">
-                <ShieldCheck className="h-3 w-3" /> Safe &bull; Zero-Scrape
-              </span>
-            </div>
+            {(!isCollapsed || mobileOpen) && (
+              <div className="truncate">
+                <span className="font-bold text-base text-foreground tracking-tight block">
+                  CareerConnect <span className="text-primary">AI</span>
+                </span>
+                <span className="text-[10px] uppercase font-semibold tracking-wider text-success flex items-center gap-1">
+                  <ShieldCheck className="h-3 w-3" /> Safe &bull; Zero-Scrape
+                </span>
+              </div>
+            )}
           </Link>
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden p-1 text-slate-400 hover:text-slate-600"
+            className="lg:hidden p-1.5 text-muted-foreground hover:text-foreground rounded-md"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -98,58 +131,94 @@ export function Sidebar() {
 
         {/* Navigation Links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {ALL_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href === "/overview" && pathname === "/");
+            const isActive =
+              pathname === item.href ||
+              (item.href === "/overview" && pathname === "/app");
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
+                title={isCollapsed && !mobileOpen ? item.label : undefined}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   isActive
-                    ? "bg-blue-50 text-blue-700 font-semibold"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  isCollapsed && !mobileOpen && "justify-center px-2"
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
-                <Icon className={cn("h-4 w-4", isActive ? "text-blue-600" : "text-slate-400")} />
-                <span>{item.label}</span>
+                <Icon
+                  className={cn(
+                    "h-4 w-4 shrink-0",
+                    isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                  )}
+                />
+                {(!isCollapsed || mobileOpen) && <span className="truncate">{item.label}</span>}
               </Link>
             );
           })}
         </nav>
 
-        {/* User Profile & Sign Out Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-3">
-          <div className="flex items-center justify-between text-[11px] text-slate-500">
-            <Link href="/privacy" className="hover:text-blue-600 transition-colors flex items-center gap-1">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-              Privacy Notice
-            </Link>
-            <span className="text-[10px] text-slate-400">v0.1.0</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5 overflow-hidden">
-              <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 shrink-0">
-                <UserIcon className="h-4 w-4" />
-              </div>
-              <div className="truncate">
-                <p className="text-xs font-semibold text-slate-800 truncate">
-                  {user?.full_name || user?.email || "User Account"}
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
-              </div>
-            </div>
+        {/* Desktop Collapse Toggle */}
+        {setCollapsed && (
+          <div className="hidden lg:flex px-3 py-2 border-t border-border/50 justify-end">
             <button
-              onClick={() => logout()}
-              title="Sign Out"
-              aria-label="Sign out"
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onClick={() => setCollapsed(!isCollapsed)}
+              className="p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <LogOut className="h-4 w-4" />
+              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             </button>
+          </div>
+        )}
+
+        {/* User Profile & Theme Toggle Footer */}
+        <div className="p-3 sm:p-4 border-t border-border bg-muted/30 space-y-3">
+          {(!isCollapsed || mobileOpen) && (
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <Link
+                href="/privacy"
+                className="hover:text-primary transition-colors flex items-center gap-1 font-medium"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-success" />
+                Privacy & Data
+              </Link>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">v1.0-prod</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2.5 overflow-hidden">
+              <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-foreground font-semibold text-xs shrink-0">
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
+              </div>
+              {(!isCollapsed || mobileOpen) && (
+                <div className="truncate">
+                  <p className="text-xs font-semibold text-foreground truncate">
+                    {user?.full_name || user?.email || "Student Account"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-1 shrink-0">
+              <ThemeToggle />
+              <button
+                onClick={() => logout()}
+                title="Sign Out"
+                aria-label="Sign out"
+                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>

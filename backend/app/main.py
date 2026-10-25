@@ -85,6 +85,18 @@ app.include_router(audit_router, prefix="/api/v1")
 app.include_router(openings_router, prefix="/api/v1")
 
 
+@app.get("/", tags=["Root"])
+async def root():
+    """Root endpoint welcoming API consumers and linking to frontend and docs."""
+    return {
+        "message": f"Welcome to {settings.APP_NAME} Backend API",
+        "frontend_app": settings.FRONTEND_URL,
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "status": "online"
+    }
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Service health and readiness probe."""
@@ -93,3 +105,4 @@ async def health_check():
         "app": settings.APP_NAME,
         "environment": settings.ENVIRONMENT
     }
+

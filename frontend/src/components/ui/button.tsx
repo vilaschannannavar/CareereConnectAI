@@ -1,33 +1,38 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "secondary" | "outline" | "ghost" | "destructive";
+  variant?: "default" | "secondary" | "outline" | "ghost" | "destructive" | "success";
   size?: "default" | "sm" | "lg" | "icon";
+  asChild?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", disabled, ...props }, ref) => {
+  ({ className, variant = "default", size = "default", asChild = false, disabled, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+
     const baseStyles =
-      "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
+      "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]";
 
     const variantStyles = {
-      default: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
-      secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-      outline: "border border-slate-300 bg-transparent hover:bg-slate-50 text-slate-700",
-      ghost: "hover:bg-slate-100 text-slate-700",
-      destructive: "bg-red-600 text-white hover:bg-red-700",
+      default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+      secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      outline: "border border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground shadow-xs",
+      ghost: "hover:bg-accent hover:text-accent-foreground text-foreground",
+      destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
+      success: "bg-success text-success-foreground hover:bg-success/90 shadow-sm",
     };
 
     const sizeStyles = {
       default: "h-10 py-2 px-4",
-      sm: "h-8 px-3 text-xs",
-      lg: "h-12 px-8 text-base",
+      sm: "h-8 px-3 text-xs rounded-md",
+      lg: "h-11 px-6 text-base",
       icon: "h-10 w-10 p-0",
     };
 
     return (
-      <button
+      <Comp
         ref={ref}
         disabled={disabled}
         className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}

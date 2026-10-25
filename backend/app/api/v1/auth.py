@@ -1,7 +1,7 @@
 import json
 import secrets
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,10 +20,15 @@ from app.models.outreach_event import OutreachEvent
 from app.schemas.auth import (
     UserRegisterRequest,
     UserLoginRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    ChangePasswordRequest,
+    SessionItemResponse,
     AuthSessionResponse,
     UserResponse,
     MessageResponse
 )
+from app.core.email import send_password_reset_email, send_verification_email
 from app.core.security import (
     hash_password,
     verify_password,
@@ -137,6 +142,12 @@ async def register_user(
     )
 
 
+# Security tracking for progressive lockout and timed tokens
+FAILED_LOGIN_ATTEMPTS: dict = {}
+PASSWORD_RESET_TOKENS: dict = {}
+EMAIL_VERIFY_TOKENS: dict = {}
+
+
 @router.post("/login", response_model=AuthSessionResponse)
 async def login_user(
     payload: UserLoginRequest,
@@ -144,14 +155,35 @@ async def login_user(
     response: Response,
     db: AsyncSession = Depends(get_db)
 ):
-    """Authenticate with email and password, establishing an httpOnly session cookie with rate limiting."""
+    # Progressive lockout check (10 failed attempts within 15 minutes)
+    client_ip = request.client.host if request.client else "unknown"
+    normalized_email = payload.email.lower().strip()
+    lockout_key = f"{client_ip}:{normalized_email}"
+    now = datetime.now(timezone.utc)
+
+    recent_attempts = [
+        t for t in FAILED_LOGIN_ATTEMPTS.get(lockout_key, [])
+        if now - t < timedelta(minutes=15)
+    ]
+    FAILED_LOGIN_ATTEMPTS[lockout_key] = recent_attempts
+
+    if len(recent_attempts) >= 10:
+        logger.warning(f"Lockout: Too many failed login attempts for {normalized_email} from {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Account temporarily locked due to consecutive failed login attempts. Please wait 15 minutes.",
+            headers={"Retry-After": "900"}
+        )
+
     # Apply rate limiting
     auth_rate_limiter.check(request, "login")
 
-    stmt = select(User).where(User.email == payload.email.lower().strip())
+    stmt = select(User).where(User.email == normalized_email)
     user = (await db.execute(stmt)).scalar_one_or_none()
 
     if not user or not verify_password(payload.password, user.password_hash):
+        recent_attempts.append(now)
+        FAILED_LOGIN_ATTEMPTS[lockout_key] = recent_attempts
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password."
@@ -162,6 +194,9 @@ async def login_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated."
         )
+
+    # Clear failed attempts on successful login
+    FAILED_LOGIN_ATTEMPTS.pop(lockout_key, None)
 
     # Create new session
     session_token = generate_session_token()
@@ -194,6 +229,202 @@ async def login_user(
         csrf_token=csrf_token,
         message="Login successful"
     )
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Initiate password reset. Never leaks whether the email is registered."""
+    normalized_email = payload.email.lower().strip()
+    stmt = select(User).where(User.email == normalized_email)
+    user = (await db.execute(stmt)).scalar_one_or_none()
+
+    if user:
+        reset_token = secrets.token_urlsafe(32)
+        PASSWORD_RESET_TOKENS[reset_token] = {
+            "user_id": user.id,
+            "email": user.email,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+        await send_password_reset_email(user.email, reset_token)
+        await record_audit_event(
+            db=db,
+            user_id=user.id,
+            action="forgot_password_requested",
+            entity_type="user",
+            details={"email": user.email}
+        )
+
+    return MessageResponse(
+        message="If that email is registered, password reset instructions have been sent."
+    )
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Confirm password reset with timed token, revoke all existing sessions."""
+    record = PASSWORD_RESET_TOKENS.get(payload.token)
+    now = datetime.now(timezone.utc)
+
+    if not record or record["expires_at"] < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password reset token is invalid or has expired."
+        )
+
+    stmt = select(User).where(User.id == record["user_id"])
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    user.password_hash = hash_password(payload.new_password)
+
+    # Invalidate all existing sessions for security
+    del_stmt = select(UserSession).where(UserSession.user_id == user.id)
+    sessions = (await db.execute(del_stmt)).scalars().all()
+    for s in sessions:
+        await db.delete(s)
+
+    PASSWORD_RESET_TOKENS.pop(payload.token, None)
+    await db.commit()
+
+    await record_audit_event(
+        db=db,
+        user_id=user.id,
+        action="password_reset_completed",
+        entity_type="user"
+    )
+
+    return MessageResponse(
+        message="Password has been successfully reset. Please log in with your new password."
+    )
+
+
+@router.post("/verify-email/request", response_model=MessageResponse)
+async def request_email_verification(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate email verification link."""
+    token = secrets.token_urlsafe(32)
+    EMAIL_VERIFY_TOKENS[token] = {
+        "user_id": current_user.id,
+        "email": current_user.email,
+        "expires_at": datetime.now(timezone.utc) + timedelta(hours=24),
+    }
+    await send_verification_email(current_user.email, token)
+    return MessageResponse(message="Verification email sent.")
+
+
+@router.post("/verify-email/confirm", response_model=MessageResponse)
+async def confirm_email_verification(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Confirm user email verification."""
+    record = EMAIL_VERIFY_TOKENS.get(token)
+    now = datetime.now(timezone.utc)
+
+    if not record or record["expires_at"] < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification token is invalid or expired."
+        )
+
+    stmt = select(User).where(User.id == record["user_id"])
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if user:
+        user.is_active = True
+        EMAIL_VERIFY_TOKENS.pop(token, None)
+        await db.commit()
+
+    return MessageResponse(message="Email verified successfully.")
+
+
+@router.post("/change-password", response_model=MessageResponse, dependencies=[Depends(verify_csrf)])
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update password for authenticated user."""
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect."
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+
+    await record_audit_event(
+        db=db,
+        user_id=current_user.id,
+        action="password_changed",
+        entity_type="user"
+    )
+
+    return MessageResponse(message="Password changed successfully.")
+
+
+@router.get("/sessions", response_model=List[SessionItemResponse])
+async def list_active_sessions(
+    current_user: User = Depends(get_current_user),
+    current_session: UserSession = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all active login sessions belonging to current user."""
+    now = datetime.now(timezone.utc)
+    stmt = (
+        select(UserSession)
+        .where(UserSession.user_id == current_user.id, UserSession.expires_at > now)
+        .order_by(UserSession.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    sessions = result.scalars().all()
+
+    items = []
+    for s in sessions:
+        items.append(
+            SessionItemResponse(
+                id=s.id,
+                ip_address=s.ip_address,
+                user_agent=s.user_agent,
+                created_at=s.created_at,
+                expires_at=s.expires_at,
+                is_current=(s.id == current_session.id),
+            )
+        )
+    return items
+
+
+@router.delete("/sessions/{session_id}", response_model=MessageResponse, dependencies=[Depends(verify_csrf)])
+async def revoke_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Revoke an active session. Strict 404 for other users' sessions."""
+    stmt = select(UserSession).where(UserSession.id == session_id)
+    session = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+
+    await db.delete(session)
+    await db.commit()
+    return MessageResponse(message="Session revoked successfully.")
 
 
 @router.post("/logout", response_model=MessageResponse, dependencies=[Depends(verify_csrf)])

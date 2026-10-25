@@ -1,6 +1,6 @@
 """Schemas for authentication and user management."""
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -15,6 +15,35 @@ class UserLoginRequest(BaseModel):
     """Payload for user login."""
     email: EmailStr
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Payload to initiate password reset."""
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Payload to confirm password reset."""
+    token: str
+    new_password: str = Field(min_length=8, description="Password must be at least 8 characters")
+
+
+class ChangePasswordRequest(BaseModel):
+    """Payload to change current user's password."""
+    current_password: str
+    new_password: str = Field(min_length=8, description="Password must be at least 8 characters")
+
+
+class SessionItemResponse(BaseModel):
+    """Active session metadata."""
+    id: str
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: datetime
+    expires_at: datetime
+    is_current: bool = False
+
+    model_config = {"from_attributes": True}
 
 
 class UserResponse(BaseModel):

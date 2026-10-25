@@ -52,10 +52,10 @@ jobs:
           cd frontend
           npm ci
 
-      - name: Run Frontend Tests
+      - name: Run Frontend Tests & Coverage Gate
         run: |
           cd frontend
-          npm test -- --run
+          npm run test:coverage
 
       - name: Run Frontend Production Build
         env:

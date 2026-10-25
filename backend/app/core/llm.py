@@ -1,6 +1,7 @@
 """Provider-agnostic LLM interface with prompt-injection hardening and Pydantic validation."""
 import re
 import json
+import asyncio
 import httpx
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
@@ -32,15 +33,11 @@ class MockLLMService(LLMService):
     """Deterministic, safe offline mock service for local development and test suites."""
 
     async def extract_resume_data(self, resume_text: str) -> ParsedResumeSchema:
-        # Prompt injection test check: ensure malicious instructions inside text are ignored
-        # Even if resume contains injection instructions, we treat it strictly as text data
-        
-        # Extract candidate name (usually top line)
         lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
         raw_name = lines[0] if lines and len(lines[0]) < 50 and not lines[0].startswith(("http", "Resume", "Page")) else "Candidate"
         name = re.sub(r"^Name:\s*", "", raw_name, flags=re.IGNORECASE).strip()
         if "ignore previous" in name.lower() or "system" in name.lower() or "<script" in name.lower():
-            name = None  # Do not allow instruction strings as names
+            name = None
 
         # Extract email via regex
         email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", resume_text)
@@ -51,11 +48,14 @@ class MockLLMService(LLMService):
         phone = phone_match.group(0) if phone_match else None
 
         # Extract skills heuristics
-        known_skills = ["Python", "TypeScript", "JavaScript", "React", "Next.js", "FastAPI", "SQL", "PostgreSQL", "Docker", "AWS", "Git", "C++", "Java"]
+        known_skills = [
+            "Python", "TypeScript", "JavaScript", "React", "Next.js", "FastAPI",
+            "SQL", "PostgreSQL", "Docker", "AWS", "Git", "C++", "Java", "Go", "Kubernetes"
+        ]
         found_skills = [s for s in known_skills if re.search(rf"\b{re.escape(s)}\b", resume_text, re.IGNORECASE)]
 
         # Extract tools heuristics
-        known_tools = ["VS Code", "Postman", "GitHub", "Jira", "Figma", "Linux"]
+        known_tools = ["VS Code", "Postman", "GitHub", "Jira", "Figma", "Linux", "Docker"]
         found_tools = [t for t in known_tools if re.search(rf"\b{re.escape(t)}\b", resume_text, re.IGNORECASE)]
 
         # Extract languages
@@ -114,11 +114,11 @@ class MockLLMService(LLMService):
 
 
 class GeminiLLMService(LLMService):
-    """Google Gemini REST API implementation with structured output schema."""
+    """Google Gemini REST API implementation with structured output schema and degraded fallback."""
 
     async def extract_resume_data(self, resume_text: str) -> ParsedResumeSchema:
         if not settings.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY not configured, falling back to mock parser.")
+            logger.info("GEMINI_API_KEY not configured, operating in offline deterministic mode.")
             return await MockLLMService().extract_resume_data(resume_text)
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.LLM_MODEL_NAME}:generateContent?key={settings.GEMINI_API_KEY}"
@@ -137,7 +137,8 @@ class GeminiLLMService(LLMService):
             }
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        timeout = getattr(settings, "LLM_TIMEOUT_SECONDS", 15.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             for attempt in range(settings.LLM_MAX_RETRIES + 1):
                 try:
                     response = await client.post(url, json=payload)
@@ -145,12 +146,18 @@ class GeminiLLMService(LLMService):
                         data = response.json()
                         raw_json = data["candidates"][0]["content"]["parts"][0]["text"]
                         return ParsedResumeSchema.model_validate_json(raw_json)
+                    elif response.status_code in (429, 503):
+                        logger.warning(f"Gemini API rate limited or unavailable (status {response.status_code}) on attempt {attempt + 1}")
+                        if attempt < settings.LLM_MAX_RETRIES:
+                            await asyncio.sleep(0.5 * (2 ** attempt))
                 except Exception as exc:
                     logger.warning(f"Gemini LLM extraction attempt {attempt + 1} failed: {exc}")
+                    if attempt < settings.LLM_MAX_RETRIES:
+                        await asyncio.sleep(0.5 * (2 ** attempt))
 
-        # Fallback safe empty extraction on error
-        logger.error("LLM extraction failed after retries; failing safely.")
-        return ParsedResumeSchema()
+        # Graceful degraded mode: activate deterministic classifier
+        logger.warning("LLM gateway unavailable or quota exhausted. Falling back to deterministic degraded mode.")
+        return await MockLLMService().extract_resume_data(resume_text)
 
 
 def get_llm_service() -> LLMService:

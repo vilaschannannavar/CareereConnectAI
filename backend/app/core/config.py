@@ -64,16 +64,26 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"  # "gemini", "openai", "mock"
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
-    LLM_MODEL_NAME: str = "gemini-1.5-flash"
+    LLM_MODEL_NAME: str = "gemini-2.0-flash"
     LLM_TEMPERATURE: float = 0.3
-    LLM_MAX_RETRIES: int = 1
-    LLM_USER_BUDGET_CAP_USD: float = 1.00  # Per-user budget cap in USD
+    LLM_TIMEOUT_SECONDS: float = 15.0
+    LLM_MAX_RETRIES: int = 2
+    LLM_USER_BUDGET_CAP_USD: float = 5.00  # Per-user budget cap in USD
     LLM_ESTIMATED_COST_PER_CALL_USD: float = 0.005  # Estimated cost per extraction/analysis call
 
     # LinkedIn OAuth Settings
     LINKEDIN_CLIENT_ID: Optional[str] = None
     LINKEDIN_CLIENT_SECRET: Optional[str] = None
     LINKEDIN_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/linkedin/callback"
+
+    # Email Settings
+    EMAIL_PROVIDER: str = "console"  # "console" or "smtp"
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: str = "noreply@careerconnect.ai"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # Resume & Antivirus Settings
     MAX_RESUME_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB
